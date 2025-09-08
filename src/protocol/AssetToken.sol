@@ -28,6 +28,7 @@ contract AssetToken is ERC20 {
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
     //////////////////////////////////////////////////////////////*/
+    // @audit ADERYN -info Event missing indexed params
     event ExchangeRateUpdated(uint256 newExchangeRate);
 
     /*//////////////////////////////////////////////////////////////
@@ -74,7 +75,7 @@ contract AssetToken is ERC20 {
     }
 
     function transferUnderlyingTo(address to, uint256 amount) external onlyThunderLoan {
-        i_underlying.safeTransfer(to, amount);
+        i_underlying.safeTransfer(to, amount); //@audit -Incorrect function arguments?
     }
 
     function updateExchangeRate(uint256 fee) external onlyThunderLoan {
@@ -86,6 +87,10 @@ contract AssetToken is ERC20 {
         // newExchangeRate = oldExchangeRate * (totalSupply + fee) / totalSupply
         // newExchangeRate = 1 (4 + 0.5) / 4
         // newExchangeRate = 1.125
+        //@notes exchangeRate = (oldExchangeRate) + (fee / totalSupply)
+
+        //@audit -gas Sore the exchange rate in a local variable to stop reading from storage muiltiple times.
+        
         uint256 newExchangeRate = s_exchangeRate * (totalSupply() + fee) / totalSupply();
 
         if (newExchangeRate <= s_exchangeRate) {
