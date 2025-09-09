@@ -181,6 +181,8 @@ contract ThunderLoan is Initializable, OwnableUpgradeable, UUPSUpgradeable, Orac
         assetToken.transferUnderlyingTo(msg.sender, amountUnderlying);
     }
 
+    //@audit -info No natspect
+
     function flashloan(
         address receiverAddress,
         IERC20 token,
@@ -217,10 +219,10 @@ contract ThunderLoan is Initializable, OwnableUpgradeable, UUPSUpgradeable, Orac
         // @follow uo do we need the return value
         receiverAddress.functionCall(
             abi.encodeCall(
-                IFlashLoanReceiver.executeOperation, // @notes This is the target address for the call
+                IFlashLoanReceiver.executeOperation, // @notes A reference to the function you want to call
                 (
-                    address(token), // @notes this is the function selector
-                    amount,
+                    address(token), // @notes A tuple of the arguments that the function 
+                    // @audit -High Mising funcion argument "value"
                     fee,
                     msg.sender, // initiator
                     params
