@@ -10,7 +10,7 @@
 //  "*beeeP"      P        d      e.      $**""    "
 //      "*b.     Jbc.     z*%e.. .$**eeeeP"
 //         "*beee* "$$eeed"  ^$$$""    "
-//                  '$$.     .$$$c
+//                 s '$$.     .$$$c
 //                   "$$.   e$$*$$c
 //                    "$$..$$P" '$$r
 //                     "$$$$"    "$$.           .d
@@ -74,6 +74,7 @@ import { OracleUpgradeable } from "./OracleUpgradeable.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { IFlashLoanReceiver } from "../interfaces/IFlashLoanReceiver.sol";
 
+// @audit info/low this contract does not implement the IFlashLoanReceiver interface.
 contract ThunderLoan is Initializable, OwnableUpgradeable, UUPSUpgradeable, OracleUpgradeable {
     error ThunderLoan__NotAllowedToken(IERC20 token);
     error ThunderLoan__CantBeZero();
@@ -138,6 +139,10 @@ contract ThunderLoan is Initializable, OwnableUpgradeable, UUPSUpgradeable, Orac
     /*//////////////////////////////////////////////////////////////
                            EXTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
+    // @audit -info change name to poolFactoryAddress
+    // @note what happens if we deploy the contract, but someone else initlizes it?
+    // @audit -low the initialize function can be frontrunned after deployment
+    // mitigation is to call the deploy function in deployment script.
     function initialize(address tswapAddress) external initializer {
         __Ownable_init(msg.sender);
         __UUPSUpgradeable_init();
