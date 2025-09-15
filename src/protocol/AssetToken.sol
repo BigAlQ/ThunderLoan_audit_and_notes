@@ -21,6 +21,8 @@ contract AssetToken is ERC20 {
     // The underlying per asset exchange rate
     // ie: s_exchangeRate = 2
     // means 1 asset token is worth 2 underlying tokens
+    //@notes  underlying == usdc
+    // assetToken  == shares token
     uint256 private s_exchangeRate;
     uint256 public constant EXCHANGE_RATE_PRECISION = 1e18;
     uint256 private constant STARTING_EXCHANGE_RATE = 1e18;
@@ -53,7 +55,9 @@ contract AssetToken is ERC20 {
     //////////////////////////////////////////////////////////////*/
     constructor(
         address thunderLoan,
-        IERC20 underlying,
+        IERC20 underlying, // e the token bieng deposited for flash loans
+        // oh are the ERC20's stored in assetToken and not Thunderloan?
+        // q where are the tokens stored
         string memory assetName,
         string memory assetSymbol
     )
@@ -75,22 +79,31 @@ contract AssetToken is ERC20 {
     }
 
     function transferUnderlyingTo(address to, uint256 amount) external onlyThunderLoan {
+        // e wierd ERC20's ?
+        // q what happens if USDC blacklists the thunderloan contract?
+        // q what happens if USDC blacklists the assetToken contract?
+        // @note wierd ERC20's with USDC
+        // @audit Medium If this contract is blacklisted by USDC, the protocol will freeze.
         i_underlying.safeTransfer(to, amount); //@audit -Incorrect function arguments?
     }
 
+    // e responsible for updating the exchange rate of AssetTokens -> Underlying
     function updateExchangeRate(uint256 fee) external onlyThunderLoan {
         // 1. Get the current exchange rate
         // 2. How big the fee is should be divided by the total supply
         // 3. So if the fee is 1e18, and the total supply is 2e18, the exchange rate be multiplied by 1.5
         // if the fee is 0.5 ETH, and the total supply is 4, the exchange rate should be multiplied by 1.125
-        // it should always go up, never down
+        // it should always go up, never down -> INVARIANT!
+        // q okay but why?
         // newExchangeRate = oldExchangeRate * (totalSupply + fee) / totalSupply
         // newExchangeRate = 1 (4 + 0.5) / 4
         // newExchangeRate = 1.125
         //@notes exchangeRate = (oldExchangeRate) + (fee / totalSupply)
 
         //@audit -gas Sore the exchange rate in a local variable to stop reading from storage muiltiple times.
-        
+
+        // q what if totalSupply is 0?
+        // this breaks! is that an issue?
         uint256 newExchangeRate = s_exchangeRate * (totalSupply() + fee) / totalSupply();
 
         if (newExchangeRate <= s_exchangeRate) {

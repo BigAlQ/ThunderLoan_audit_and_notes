@@ -93,10 +93,10 @@ contract ThunderLoan is Initializable, OwnableUpgradeable, UUPSUpgradeable, Orac
     /*//////////////////////////////////////////////////////////////
                             STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
-    mapping(IERC20 => AssetToken) public s_tokenToAssetToken;
+    mapping(IERC20 => AssetToken) public s_tokenToAssetToken; // USDC -> USDCAssetToken
 
     // The fee in WEI, it should have 18 decimals. Each flash loan takes a flat fee of the token price.
-    uint256 private s_feePrecision;
+    uint256 private s_feePrecision; // @audit -gas This variable should be immutable
     uint256 private s_flashLoanFee; // 0.3% ETH fee
 
     mapping(IERC20 token => bool currentlyFlashLoaning) private s_currentlyFlashLoaning;
@@ -146,20 +146,28 @@ contract ThunderLoan is Initializable, OwnableUpgradeable, UUPSUpgradeable, Orac
     function initialize(address tswapAddress) external initializer {
         __Ownable_init(msg.sender);
         __UUPSUpgradeable_init();
-        __Oracle_init(tswapAddress);
+        __Oracle_init(tswapAddress); // e using tswap as an oracle.
         // @audit ADERYN -info Magic numbers should not be used
         s_feePrecision = 1e18;
-        s_flashLoanFee = 3e15; // 0.3% ETH fee
+        s_flashLoanFee = 3e15; // 0.3% ETH fee   1000 * 0.003 = 3
     }
 
+    // @audit -info NO NATSPEC!
     function deposit(IERC20 token, uint256 amount) external revertIfZero(amount) revertIfNotAllowedToken(token) {
-        AssetToken assetToken = s_tokenToAssetToken[token];
+        AssetToken assetToken = s_tokenToAssetToken[token]; // e asset token is the token that represent ownersip of he
+            // pool
         uint256 exchangeRate = assetToken.getExchangeRate();
+        // e 100e18 USDC * 1e18 / 1e18 (2e18)
+        // 100e18 * 1e18 / 2e18 = 50e18
+        // e this  should never be zero because of the asset token conditional
         uint256 mintAmount = (amount * assetToken.EXCHANGE_RATE_PRECISION()) / exchangeRate;
         emit Deposit(msg.sender, token, amount);
         assetToken.mint(msg.sender, mintAmount);
+        // @audit followUp this is weird, why are we updating the exchange rate on deposit?
+        // @audit High We should not be updating the exchange rate on deposits.
         uint256 calculatedFee = getCalculatedFee(token, amount);
         assetToken.updateExchangeRate(calculatedFee);
+        // e when a liquidity provider deposits, the $ sits in the assetToken contract
         token.safeTransferFrom(msg.sender, address(assetToken), amount);
     }
 
@@ -189,22 +197,22 @@ contract ThunderLoan is Initializable, OwnableUpgradeable, UUPSUpgradeable, Orac
     //@audit -info No natspect
 
     function flashloan(
-        address receiverAddress,
-        IERC20 token,
-        uint256 amount,
-        bytes calldata params
+        address receiverAddress, // e the address to get the flash loaned tokens
+        IERC20 token, // e the ERC20 to borrow
+        uint256 amount, // e the amount to borrow
+        bytes calldata params // e the params to call the receiver address with
     )
         external
         revertIfZero(amount)
         revertIfNotAllowedToken(token)
     {
-        AssetToken assetToken = s_tokenToAssetToken[token];
+        AssetToken assetToken = s_tokenToAssetToken[token]; // e the asset contract to get the underlying coin (USDC)
         uint256 startingBalance = IERC20(token).balanceOf(address(assetToken));
 
         if (amount > startingBalance) {
             revert ThunderLoan__NotEnoughTokenBalance(startingBalance, amount);
         }
-
+        // e making sure the reciever address is a smart contract
         if (receiverAddress.code.length == 0) {
             revert ThunderLoan__CallerIsNotContract();
         }
@@ -226,8 +234,8 @@ contract ThunderLoan is Initializable, OwnableUpgradeable, UUPSUpgradeable, Orac
             abi.encodeCall(
                 IFlashLoanReceiver.executeOperation, // @notes A reference to the function you want to call
                 (
-                    address(token), // @notes A tuple of the arguments that the function 
-                    // @audit -High Mising funcion argument "value"
+                    address(token),
+                    amount, // @notes A tuple of the arguments that the function
                     fee,
                     msg.sender, // initiator
                     params
@@ -254,6 +262,7 @@ contract ThunderLoan is Initializable, OwnableUpgradeable, UUPSUpgradeable, Orac
     function setAllowedToken(IERC20 token, bool allowed) external onlyOwner returns (AssetToken) {
         if (allowed) {
             if (address(s_tokenToAssetToken[token]) != address(0)) {
+                /// @audit -info Pass Token address in event
                 revert ThunderLoan__AlreadyAllowed();
             }
             string memory name = string.concat("ThunderLoan ", IERC20Metadata(address(token)).name());
@@ -269,9 +278,16 @@ contract ThunderLoan is Initializable, OwnableUpgradeable, UUPSUpgradeable, Orac
             return assetToken;
         }
     }
+    // @param token the token bieng borrowed
+    // @param amount the amount of the token that is bieng borrowed
 
     function getCalculatedFee(IERC20 token, uint256 amount) public view returns (uint256 fee) {
+        // @audit -gas too many storage reads, cache storage to memory
         //slither-disable-next-line divide-before-multiply
+        //  e so this is why we need TSWAP
+        // q is the decimal percision in the Tswap oracle always 18, and will it work for USDC which has 6 decimals?
+        // @audit High If the fee is going to be in units of token, then the value of borrowed token should also be in
+        // units of token, not in weth.
         uint256 valueOfBorrowedToken = (amount * getPriceInWeth(address(token))) / s_feePrecision;
         //slither-disable-next-line divide-before-multiply
         fee = (valueOfBorrowedToken * s_flashLoanFee) / s_feePrecision;
@@ -284,6 +300,7 @@ contract ThunderLoan is Initializable, OwnableUpgradeable, UUPSUpgradeable, Orac
         // @audit SLITHER -Low You must emit an event when updating storage
         s_flashLoanFee = newFee;
     }
+    // q is it ever unset poorly
 
     function isAllowedToken(IERC20 token) public view returns (bool) {
         return address(s_tokenToAssetToken[token]) != address(0);
