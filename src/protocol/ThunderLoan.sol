@@ -197,7 +197,7 @@ contract ThunderLoan is Initializable, OwnableUpgradeable, UUPSUpgradeable, Orac
     //@audit -info No natspect
 
     function flashloan(
-        address receiverAddress, // e the address to get the flash loaned tokens
+        address receiverAddress, // e the address to get the flash loaned tokens,IS ALSO USED TO CALL EXECUTE OPERATION ON
         IERC20 token, // e the ERC20 to borrow
         uint256 amount, // e the amount to borrow
         bytes calldata params // e the params to call the receiver address with
@@ -226,7 +226,7 @@ contract ThunderLoan is Initializable, OwnableUpgradeable, UUPSUpgradeable, Orac
         emit FlashLoan(receiverAddress, token, amount, fee, params);
         // @follow up Reentrancy?
         s_currentlyFlashLoaning[token] = true;
-        assetToken.transferUnderlyingTo(receiverAddress, amount);
+        assetToken.transferUnderlyingTo(receiverAddress, amount); // here the funds are sent
         // slither-disable-next-line unused-return reentrancy-vulnerabilities-2
         // @follow up Reentrancy?
         // @follow uo do we need the return value
