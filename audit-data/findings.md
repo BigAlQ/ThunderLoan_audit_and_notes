@@ -72,3 +72,19 @@ function deposit(IERC20 token, uint256 amount) external revertIfZero(amount) rev
         token.safeTransferFrom(msg.sender, address(assetToken), amount);
     }
 ```
+
+## Mediums
+
+### [M-1] Using TSwap as a price oracle, leads to price and oracle manipulation attacks, which lead to lower fee costs than expected.
+
+**Description:** The TSwap protocol is a constant product formula based AMM (automated market maker). And this type of protocol derives the price of an asset from the ratio of one asset to another in a liquidity pool. Becuase of this fact, if a user takes a huge flash loan, and buys out a large supply of an asset from one of those liquidity pools, he can manipulate the price of the other asset in the liquidity pool, to make it very cheap int this example, and effectively ignore protocol fees.
+
+**Impact:** Liquidity provider for the ThunderLoan protocol will lose out on a lot of fees for providing liquidity.
+
+**Proof of Concept:**
+
+The following all happens in 1 transaction.
+
+1. User takes a flash loan from `ThunderLoan` for 1000 `tokenA`. They are charged the
+
+**Recommended Mitigation:**

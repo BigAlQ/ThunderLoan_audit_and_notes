@@ -250,6 +250,7 @@ contract ThunderLoan is Initializable, OwnableUpgradeable, UUPSUpgradeable, Orac
         s_currentlyFlashLoaning[token] = false;
     }
     // @audit ADERYN-info public functions not used internally could be marked external
+    // @audit - Low You cam't use repay to repay a flash loan inside another flash loan.
 
     function repay(IERC20 token, uint256 amount) public {
         if (!s_currentlyFlashLoaning[token]) {

